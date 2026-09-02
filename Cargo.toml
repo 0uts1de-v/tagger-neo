@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
 description = "A fast native dataset tag editor with WD14 tagging"
-license = "MIT"
+license = "GPL3"
 
 [dependencies]
 anyhow = "1.0"
