@@ -164,6 +164,7 @@ pub struct TaggerNeoApp {
     progress: f32,
     progress_text: String,
     confirm_open: bool,
+    pending_open_path: Option<PathBuf>,
     confirm_exit: bool,
     pending_delete: Option<DeletePlan>,
     allow_exit: bool,
@@ -237,6 +238,7 @@ impl TaggerNeoApp {
             progress: 0.0,
             progress_text: String::new(),
             confirm_open: false,
+            pending_open_path: None,
             confirm_exit: false,
             pending_delete: None,
             allow_exit: false,
@@ -317,14 +319,11 @@ impl TaggerNeoApp {
             .join("wd14")
     }
 
-    fn open(&mut self) {
+    fn open_path(&mut self, path: PathBuf) {
         if self.worker.is_some() {
             self.status = "⚠ WD14 …".to_owned();
             return;
         }
-        let Some(path) = rfd::FileDialog::new().pick_folder() else {
-            return;
-        };
         match Dataset::open_with_options(&path, &self.caption_extension, self.filename_fallback) {
             Ok(data) => {
                 let count = data.len();
@@ -347,15 +346,30 @@ impl TaggerNeoApp {
             return;
         }
         self.commit_caption();
+        let Some(path) = rfd::FileDialog::new().pick_folder() else {
+            return;
+        };
         if self
             .data
             .as_ref()
             .map(Dataset::has_unsaved_changes)
             .unwrap_or(false)
         {
+            self.pending_open_path = Some(path);
             self.confirm_open = true;
         } else {
-            self.open();
+            self.open_path(path);
+        }
+    }
+
+    fn open_pending_path(&mut self) {
+        if self.worker.is_some() {
+            self.status = "⚠ WD14 …".to_owned();
+            return;
+        }
+        if let Some(path) = self.pending_open_path.take() {
+            self.confirm_open = false;
+            self.open_path(path);
         }
     }
 
@@ -1734,16 +1748,15 @@ impl TaggerNeoApp {
                                 .map(Dataset::has_unsaved_changes)
                                 .unwrap_or(false)
                             {
-                                self.confirm_open = false;
-                                self.open();
+                                self.open_pending_path();
                             }
                         }
                         if ui.button("▣").on_hover_text("Discard and open").clicked() {
-                            self.confirm_open = false;
-                            self.open();
+                            self.open_pending_path();
                         }
                         if ui.button("×").on_hover_text("Cancel").clicked() {
                             self.confirm_open = false;
+                            self.pending_open_path = None;
                         }
                     });
                 });
